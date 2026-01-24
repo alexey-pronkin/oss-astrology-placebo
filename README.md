@@ -6,6 +6,12 @@
 
 ---
 
+## Release Notes (draft)
+
+Astrology Placebo Lab ships a Vite + React web UI for generating relationship‑compatibility prompts in two modes: a rigorous, science‑honest template and multiple pseudo‑astrology styles (astro‑quantum, tarot full‑stack, natal matrix). The app integrates OpenRouter, supports single or batch prompt generation, and keeps a browsable history with optional persistence. It also includes env parsing with friendly warnings, a Docker Compose setup using secrets and a randomized host port, and a refreshed README for vibecoders.
+
+---
+
 ## Что это делает
 
 - Формирует научно-ориентированный промт (с честной оговоркой про астрологию).
