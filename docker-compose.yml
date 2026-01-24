@@ -1,0 +1,25 @@
+services:
+  web:
+    image: node:20-alpine
+    working_dir: /app
+    env_file:
+      - ./example.env
+    environment:
+      - VITE_OPENROUTER_API_KEY
+      - VITE_FEMALE_DATE
+      - VITE_FEMALE_TIME
+      - VITE_MALE_DATE
+      - VITE_MALE_TIME
+      - OPENROUTER_API_KEY_FILE
+      - CONTAINER_WEB_PORT
+    ports:
+      - "${HOST_WEB_PORT:-18473}:${CONTAINER_WEB_PORT:-5173}"
+    volumes:
+      - ./:/app
+    command: ["/bin/sh", "/app/docker/entrypoint.sh"]
+    secrets:
+      - openrouter_api_key
+
+secrets:
+  openrouter_api_key:
+    file: ./secrets/openrouter_api_key
