@@ -1,189 +1,137 @@
 # Astrology Placebo Lab
 
-Чистый и понятный веб-интерфейс для генерации промтов о совместимости.
-Есть два режима: научный (честный) и псевдонаучные астрологические стили.
-Работает через OpenRouter API и умеет сравнивать разные генерации.
+[Русская версия](./README.ru.md)
 
----
+Astrology Placebo Lab is a Vite + React interface for generating relationship-compatibility prompts. It supports one science-honest template and several intentionally symbolic pseudo-astrology styles, all sent through an OpenRouter proxy running inside the local Vite dev server.
 
-## Release Notes (draft)
+## Features
 
-Astrology Placebo Lab ships a Vite + React web UI for generating relationship‑compatibility prompts in two modes: a rigorous, science‑honest template and multiple pseudo‑astrology styles (astro‑quantum, tarot full‑stack, natal matrix). The app integrates OpenRouter, supports single or batch prompt generation, and keeps a browsable history with optional persistence. It also includes env parsing with friendly warnings, a Docker Compose setup using secrets and a randomized host port, and a refreshed README for vibecoders.
+- Generates one selected prompt or the whole template set.
+- Keeps the UI state in `localStorage` without persisting API keys.
+- Validates `.env` defaults for birth date and birth time fields.
+- Sends OpenRouter requests through a local proxy with masked stdout logs.
+- Ships with Docker Compose for `web`, `traefik`, and `crowdsec`.
+- Exposes a clean extension seam for future context providers such as a "memory album" service.
 
----
+## Architecture
 
-## Что это делает
+The refactor intentionally keeps the app small and explicit:
 
-- Формирует научно-ориентированный промт (с честной оговоркой про астрологию).
-- Даёт выбор псевдонаучных промтов (натальные термины, таро, техно-эзотерика).
-- Отправляет запросы в LLM через OpenRouter.
-- Сохраняет историю результатов (опционально).
-- Показывает промт и ответы в одном экране.
+- `src/App.jsx`: orchestration only.
+- `src/components/`: presentational sections.
+- `src/lib/env.js`: env parsing and normalization.
+- `src/lib/contextSources.js`: context-source composition.
+- `src/lib/promptTemplates.js`: prompt catalog and builders.
+- `src/lib/openRouter.js`: request wiring to the local proxy.
+- `src/lib/persistence.js`: local state persistence.
+- `src/content/appText.js`: localized UI copy.
 
----
+The future integration point for additional context is `buildContextSources(...)`. Today it uses only the manual textarea; later it can receive normalized external sources without rewriting prompt builders or UI state management.
 
-## Быстрый старт (локально)
+## Local Development
 
-1) Установить зависимости:
+1. Install dependencies:
 
 ```bash
 npm install
 ```
 
-2) Скопировать и настроить переменные:
+2. Copy the env template:
 
 ```bash
 cp example.env .env
 ```
 
-3) Запуск:
+3. Set at least:
+
+```env
+OPENROUTER_API_KEY=<openrouter-api-key>
+```
+
+4. Start the app:
 
 ```bash
 npm run dev
 ```
 
-Откройте адрес, который покажет Vite (обычно http://localhost:5173).
+The dev server logs validated env defaults and masked request lifecycle events to stdout.
 
----
+## Environment Variables
 
-## Настройка OpenRouter
+Main variables:
 
-Есть два варианта:
+```env
+VITE_FEMALE_DATE=25.10.1990
+VITE_FEMALE_TIME=04:00:00am
+VITE_MALE_DATE=25.08.1993
+VITE_MALE_TIME=22:00
 
-### Вариант 1 — просто (ключ прямо в .env)
-
-В `.env`:
-
-```
-VITE_OPENROUTER_API_KEY=<openrouter-api-key>
-```
-
-### Вариант 2 — безопаснее (Docker secrets)
-
-1) Создайте файл:
-
-```
-secrets/openrouter_api_key
+OPENROUTER_API_KEY=<openrouter-api-key>
+OPENROUTER_API_KEY_FILE=./secrets/openrouter_api_key
+APP_HOSTNAME=astro.localhost
+TRAEFIK_ACME_EMAIL=admin@example.com
+TRAEFIK_HTTP_PORT=80
+TRAEFIK_HTTPS_PORT=443
+CROWDSEC_BOUNCER_KEY=replace-with-long-random-string
+CONTAINER_WEB_PORT=5173
 ```
 
-2) Внутри файла — только ключ, без пробелов и кавычек.
+Supported date format:
 
-3) Запускайте через docker compose (см. ниже).
+- `DD.MM.YYYY`
+- `YYYY-MM-DD`
 
----
+Supported time format:
+
+- `HH:MM[:SS][am|pm]`
+- `HH:MM` in 24-hour time
 
 ## Docker Compose
 
-Проект готов к запуску в Docker без установки Node.js.
+The compose stack contains:
 
-1) Скопируйте env:
+- `web`: the Vite dev server and OpenRouter proxy.
+- `traefik`: reverse proxy with TLS and Docker labels.
+- `crowdsec`: log parser and appsec service for the Traefik bouncer plugin.
 
-```bash
-cp example.env .env
+Minimal `.env` values for the reverse proxy stack:
+
+```env
+APP_HOSTNAME=astro.example.com
+TRAEFIK_ACME_EMAIL=ops@example.com
+CROWDSEC_BOUNCER_KEY=replace-with-long-random-string
 ```
 
-2) (Опционально) Положите ключ в файл:
-
-```
-secrets/openrouter_api_key
-```
-
-3) Запуск:
+Start the stack:
 
 ```bash
 docker compose up
 ```
 
-По умолчанию используется не стандартный порт.
-Порт можно изменить в `.env`:
+## Testing and Verification
 
-```
-HOST_WEB_PORT=18473
-CONTAINER_WEB_PORT=5173
-```
+Run the quality gates:
 
-Откройте:
-
-```
-http://localhost:18473
+```bash
+npm run lint
+npm run test
+npm run build
+docker compose config
 ```
 
----
+## Prompt Templates
 
-## Промты
+- `scientific`: science-honest relationship analysis.
+- `astro-quantum`: pseudo-clinical astrology parody.
+- `tarot-full-stack`: theatrical tarot reading parody.
+- `natal-matrix`: pseudo-technical esoteric report.
 
-В интерфейсе есть несколько шаблонов:
+## Security Notes
 
-- **Научный (честный)** — эмпиричный, осторожный, без мистики.
-- **Astro-Quantum Synastry** — псевдонаучная “диагностика”.
-- **Tarot Full-Stack** — полный канон таро + расклад.
-- **Natal Matrix** — техно-эзотерическая “матрица”.
+- API keys are not stored in `localStorage`.
+- Browser requests go through `/api/openrouter/chat/completions`.
+- Dev and proxy logs mask token-like secrets before printing.
 
-Вы можете:
-- Сгенерировать только один выбранный промт.
-- Сгенерировать ответы сразу на все промты.
+## License
 
----
-
-## Переменные окружения
-
-Пример в `example.env`:
-
-```
-VITE_FEMALE_DATE=25.10.1990
-VITE_FEMALE_TIME=04:00:00am
-VITE_MALE_DATE=25.08.1993
-VITE_MALE_TIME=22:00:00pm
-
-VITE_OPENROUTER_API_KEY=<openrouter-api-key>
-HOST_WEB_PORT=18473
-CONTAINER_WEB_PORT=5173
-OPENROUTER_API_KEY_FILE=./secrets/openrouter_api_key
-```
-
-Формат времени:
-- `HH:MM:SSam` или `HH:MM:SSpm`
-
-Формат даты:
-- `DD.MM.YYYY`
-
-Если формат неверный — интерфейс покажет предупреждение.
-
----
-
-## История и приватность
-
-По умолчанию история сохраняется в `localStorage` браузера.
-Можно отключить это переключателем “Сохранять историю”.
-
-Ключ OpenRouter:
-- либо хранится в `.env` (просто)
-- либо в Docker secret (безопаснее)
-
----
-
-## Частые проблемы
-
-**Нет ответа от модели**
-- Проверьте ключ `VITE_OPENROUTER_API_KEY`.
-- Проверьте название модели (по умолчанию `openai/o1`).
-
-**Поля даты не заполняются**
-- Формат даты должен быть `DD.MM.YYYY`.
-
-**Поля времени не заполняются**
-- Формат времени `HH:MM:SSam` или `HH:MM:SSpm`.
-
----
-
-## Стек
-
-- Vite
-- React
-- OpenRouter API
-
----
-
-## Лицензия
-
-MIT (если хотите — замените на вашу).
+MIT

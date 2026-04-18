@@ -2,7 +2,7 @@
 set -e
 
 if [ -n "${OPENROUTER_API_KEY_FILE:-}" ] && [ -f "${OPENROUTER_API_KEY_FILE}" ]; then
-  export VITE_OPENROUTER_API_KEY="$(cat "${OPENROUTER_API_KEY_FILE}")"
+  export OPENROUTER_API_KEY="$(cat "${OPENROUTER_API_KEY_FILE}")"
 fi
 
 if [ -f package-lock.json ]; then

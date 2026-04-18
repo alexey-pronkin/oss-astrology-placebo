@@ -1,25 +1,110 @@
 services:
+  traefik:
+    image: traefik:v3.1
+    restart: unless-stopped
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.${TRAEFIK_CERT_RESOLVER:-letsencrypt}.acme.email=${TRAEFIK_ACME_EMAIL:-admin@example.com}
+      - --certificatesresolvers.${TRAEFIK_CERT_RESOLVER:-letsencrypt}.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.${TRAEFIK_CERT_RESOLVER:-letsencrypt}.acme.httpchallenge.entrypoint=web
+      - --accesslog=true
+      - --accesslog.format=json
+      - --accesslog.filepath=/var/log/traefik/access.log
+      - --log.level=INFO
+      - --experimental.plugins.bouncer.modulename=github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin
+      - --experimental.plugins.bouncer.version=v1.5.1
+    ports:
+      - "${TRAEFIK_HTTP_PORT:-80}:80"
+      - "${TRAEFIK_HTTPS_PORT:-443}:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - letsencrypt:/letsencrypt
+      - traefik-logs:/var/log/traefik
+    labels:
+      - traefik.enable=true
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+      - traefik.http.middlewares.security-headers.headers.contentTypeNosniff=true
+      - traefik.http.middlewares.security-headers.headers.browserXssFilter=true
+      - traefik.http.middlewares.security-headers.headers.frameDeny=true
+      - traefik.http.middlewares.security-headers.headers.referrerPolicy=no-referrer
+      - traefik.http.middlewares.security-headers.headers.stsSeconds=31536000
+      - traefik.http.middlewares.security-headers.headers.stsIncludeSubdomains=true
+      - traefik.http.middlewares.security-headers.headers.stsPreload=true
+      - traefik.http.middlewares.crowdsec.plugin.bouncer.enabled=true
+      - traefik.http.middlewares.crowdsec.plugin.bouncer.loglevel=INFO
+      - traefik.http.middlewares.crowdsec.plugin.bouncer.crowdsecmode=live
+      - traefik.http.middlewares.crowdsec.plugin.bouncer.crowdseclapihost=crowdsec:8080
+      - traefik.http.middlewares.crowdsec.plugin.bouncer.crowdseclapischeme=http
+      - traefik.http.middlewares.crowdsec.plugin.bouncer.crowdseclapikey=${CROWDSEC_BOUNCER_KEY:-change-me}
+      - traefik.http.middlewares.crowdsec.plugin.bouncer.crowdsecappsecenabled=true
+      - traefik.http.middlewares.crowdsec.plugin.bouncer.crowdsecappsechost=crowdsec:7422
+      - traefik.http.middlewares.crowdsec.plugin.bouncer.forwardedheaderstrustedips=${TRAEFIK_TRUSTED_IPS:-}
+    networks:
+      - edge
+
+  crowdsec:
+    image: crowdsecurity/crowdsec:latest
+    restart: unless-stopped
+    environment:
+      COLLECTIONS: >-
+        crowdsecurity/traefik
+        crowdsecurity/http-cve
+        crowdsecurity/base-http-scenarios
+        crowdsecurity/appsec-virtual-patching
+        crowdsecurity/appsec-generic-rules
+      BOUNCER_KEY_TRAEFIK: ${CROWDSEC_BOUNCER_KEY:-change-me}
+    volumes:
+      - crowdsec-data:/var/lib/crowdsec/data
+      - crowdsec-config:/etc/crowdsec
+      - traefik-logs:/var/log/traefik:ro
+      - ./docker/crowdsec/acquis.d/traefik.yaml:/etc/crowdsec/acquis.d/traefik.yaml:ro
+      - ./docker/crowdsec/acquis.d/appsec.yaml:/etc/crowdsec/acquis.d/appsec.yaml:ro
+    networks:
+      - edge
+
   web:
     image: node:20-alpine
     working_dir: /app
-    env_file:
-      - ./example.env
+    restart: unless-stopped
     environment:
-      - VITE_OPENROUTER_API_KEY
-      - VITE_FEMALE_DATE
-      - VITE_FEMALE_TIME
-      - VITE_MALE_DATE
-      - VITE_MALE_TIME
-      - OPENROUTER_API_KEY_FILE
-      - CONTAINER_WEB_PORT
-    ports:
-      - "${HOST_WEB_PORT:-18473}:${CONTAINER_WEB_PORT:-5173}"
+      VITE_FEMALE_DATE: ${VITE_FEMALE_DATE:-}
+      VITE_FEMALE_TIME: ${VITE_FEMALE_TIME:-}
+      VITE_MALE_DATE: ${VITE_MALE_DATE:-}
+      VITE_MALE_TIME: ${VITE_MALE_TIME:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_API_KEY_FILE: ${OPENROUTER_API_KEY_FILE:-}
+      CONTAINER_WEB_PORT: ${CONTAINER_WEB_PORT:-5173}
+      APP_HOSTNAME: ${APP_HOSTNAME:-}
     volumes:
       - ./:/app
     command: ["/bin/sh", "/app/docker/entrypoint.sh"]
-    secrets:
-      - openrouter_api_key
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=edge
+      - traefik.http.routers.astrology-http.rule=Host(`${APP_HOSTNAME:-localhost}`)
+      - traefik.http.routers.astrology-http.entrypoints=web
+      - traefik.http.routers.astrology-http.middlewares=redirect-to-https@docker
+      - traefik.http.routers.astrology.rule=Host(`${APP_HOSTNAME:-localhost}`)
+      - traefik.http.routers.astrology.entrypoints=websecure
+      - traefik.http.routers.astrology.tls=true
+      - traefik.http.routers.astrology.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-letsencrypt}
+      - traefik.http.routers.astrology.middlewares=crowdsec@docker,security-headers@docker
+      - traefik.http.services.astrology.loadbalancer.server.port=${CONTAINER_WEB_PORT:-5173}
+    depends_on:
+      - traefik
+      - crowdsec
+    networks:
+      - edge
 
-secrets:
-  openrouter_api_key:
-    file: ./secrets/openrouter_api_key
+volumes:
+  crowdsec-config:
+  crowdsec-data:
+  letsencrypt:
+  traefik-logs:
+
+networks:
+  edge:
+    name: astrology-edge
