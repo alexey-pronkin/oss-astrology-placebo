@@ -1,7 +1,22 @@
 services:
+  secrets-validator:
+    image: python:3.12-alpine
+    working_dir: /app
+    restart: "no"
+    environment:
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_API_KEY_FILE: ${OPENROUTER_API_KEY_FILE:-}
+      CROWDSEC_BOUNCER_KEY: ${CROWDSEC_BOUNCER_KEY:-}
+    volumes:
+      - ./:/app:ro
+    command: ["python", "/app/docker/validate-secrets.py"]
+
   traefik:
     image: traefik:v3.1
     restart: unless-stopped
+    depends_on:
+      secrets-validator:
+        condition: service_completed_successfully
     command:
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
@@ -48,6 +63,9 @@ services:
   crowdsec:
     image: crowdsecurity/crowdsec:latest
     restart: unless-stopped
+    depends_on:
+      secrets-validator:
+        condition: service_completed_successfully
     environment:
       COLLECTIONS: >-
         crowdsecurity/traefik
@@ -94,8 +112,12 @@ services:
       - traefik.http.routers.astrology.middlewares=crowdsec@docker,security-headers@docker
       - traefik.http.services.astrology.loadbalancer.server.port=${CONTAINER_WEB_PORT:-5173}
     depends_on:
-      - traefik
-      - crowdsec
+      secrets-validator:
+        condition: service_completed_successfully
+      traefik:
+        condition: service_started
+      crowdsec:
+        condition: service_started
     networks:
       - edge
 

@@ -56,6 +56,18 @@ npm run dev
 
 Dev server пишет в stdout валидированные env-дефолты и lifecycle лог запросов с маскированием токенов.
 
+5. Установите локальный pre-commit hook:
+
+```bash
+npm run precommit:install
+```
+
+Hook сканирует staged-файлы на токеноподобные секреты перед каждым commit. Ручной запуск:
+
+```bash
+npm run secrets:scan
+```
+
 ## Переменные окружения
 
 Основные переменные:
@@ -102,6 +114,18 @@ TRAEFIK_ACME_EMAIL=ops@example.com
 CROWDSEC_BOUNCER_KEY=replace-with-long-random-string
 ```
 
+Сгенерируйте не-placeholder CrowdSec bouncer key с символами:
+
+```bash
+openssl rand -base64 48 | tr -d '\n'
+```
+
+`docker compose up` всегда сначала запускает `secrets-validator`. Стек не поднимется, если:
+
+- `OPENROUTER_API_KEY` отсутствует, слишком короткий, не похож на OpenRouter key или остался placeholder.
+- `CROWDSEC_BOUNCER_KEY` отсутствует, короче 32 символов, низкоэнтропийный или не содержит символов.
+- tracked-файлы содержат токеноподобные OpenRouter-секреты.
+
 Запуск:
 
 ```bash
@@ -116,6 +140,8 @@ docker compose up
 npm run lint
 npm run test
 npm run build
+npm run secrets:scan
+npm run secrets:validate:container
 docker compose config
 ```
 
@@ -131,6 +157,8 @@ docker compose config
 - API-ключи не сохраняются в `localStorage`.
 - Браузер обращается только к `/api/openrouter/chat/completions`.
 - Dev и proxy логи маскируют токеноподобные секреты перед выводом.
+- Pre-commit secret scan проверяет staged blobs прямо из git index.
+- Docker Compose заблокирован validation container перед запуском app-сервисов.
 
 ## Лицензия
 

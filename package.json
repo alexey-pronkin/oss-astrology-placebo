@@ -7,6 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
+    "precommit:install": "node scripts/install-pre-commit.mjs",
+    "secrets:scan": "node scripts/scan-secrets.mjs --all",
+    "secrets:validate:container": "docker compose run --rm secrets-validator",
     "test": "node --test",
     "preview": "vite preview"
   },

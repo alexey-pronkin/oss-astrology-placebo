@@ -56,6 +56,18 @@ npm run dev
 
 The dev server logs validated env defaults and masked request lifecycle events to stdout.
 
+5. Install the local pre-commit hook:
+
+```bash
+npm run precommit:install
+```
+
+The hook scans staged files for token-like secrets before every commit. You can also run the scan manually:
+
+```bash
+npm run secrets:scan
+```
+
 ## Environment Variables
 
 Main variables:
@@ -102,6 +114,18 @@ TRAEFIK_ACME_EMAIL=ops@example.com
 CROWDSEC_BOUNCER_KEY=replace-with-long-random-string
 ```
 
+Generate a non-placeholder CrowdSec bouncer key with symbols:
+
+```bash
+openssl rand -base64 48 | tr -d '\n'
+```
+
+`docker compose up` always runs `secrets-validator` first. The stack will not start when:
+
+- `OPENROUTER_API_KEY` is missing, too short, not OpenRouter-shaped, or still a placeholder.
+- `CROWDSEC_BOUNCER_KEY` is missing, shorter than 32 characters, low variety, or has no symbols.
+- tracked files contain token-like OpenRouter secrets.
+
 Start the stack:
 
 ```bash
@@ -116,6 +140,8 @@ Run the quality gates:
 npm run lint
 npm run test
 npm run build
+npm run secrets:scan
+npm run secrets:validate:container
 docker compose config
 ```
 
@@ -131,6 +157,8 @@ docker compose config
 - API keys are not stored in `localStorage`.
 - Browser requests go through `/api/openrouter/chat/completions`.
 - Dev and proxy logs mask token-like secrets before printing.
+- Pre-commit secret scanning checks staged blobs from the git index.
+- Docker Compose is gated by a secrets validation container before app services start.
 
 ## License
 

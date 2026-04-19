@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: secret-scan
+        name: Secret scan
+        entry: node scripts/scan-secrets.mjs --staged
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
